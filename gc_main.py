@@ -8,6 +8,11 @@ import time
 import errno
 import os
 import data_io
+import compression
+import shutil
+from pathlib import Path
+import glob
+import netcdf_utils
 # def create_argparser():
 #     """Parses command line arguments"""
 #     return {}
@@ -54,8 +59,55 @@ def compress(args, model):
 def compress_loop(args, model, ds, dataio):
     output_path = create_output_location(args.output_path)
 
-    for i, (x, mask) in enumerate(ds):
-        print(x, mask)
+    logger.log("Making the metadata...")
+
+
+    for i, (x, mask) in enumerate(ds):  
+        output_filename = args.input_path.split("/")[-1].rpartition(".")[0] + f"_{i}"
+        output_file = os.path.join(output_path, output_filename)
+        if i == 0:
+            logger.log("Making metadata...")
+            meta_time = time.perf_counter()
+            # Mask
+            mask_path = os.path.join(output_path, "mask")
+            compression.save_compressed(mask_path, [mask])
+            # Stats
+            stat_folder = Path(args.input_path).parent.absolute()
+            stat_path = glob.glob(os.path.join(stat_folder, "*.csv"))[0]
+            stat_path = Path(stat_path)
+            stat_filename = "stats.csv"
+            shutil.copy(stat_path, os.path.join(output_path, stat_filename))
+            # Metadata
+            metadata_output_file = output_filename[:-1] + "metadata.nc"
+            metadata_output_file = os.path.join(output_path, metadata_output_file)
+            if args.verbose:
+                logger.log(f"Saving mask to {mask_path}")
+                logger.log(f"Saving statistics to {stat_path}")
+                logger.log(f"Saving metadata to {metadata_output_file}")
+            netcdf_utils.create_dataset_with_only_metadata(
+                args.input_path, metadata_output_file, args.ds_name, args.verbose
+            )
+            logger.log(
+                f"Metadata completed in {time.perf_counter() - meta_time:0.4f} seconds"
+            )
+        if args.verbose:
+            logger.log(f"\nCompressing {args.input_path}_{i}")
+            tensors, x_hat = compression.compress(model, x, mask, args.verbose)
+
+            # Save images of original data and reconstructed data for comparison.
+            x = x * mask
+            x = torch.permute(x, (0, 2, 3, 1)).detach().cpu().numpy()
+            x = dataio.revert_partition(x)
+
+            x_hat = x_hat * mask
+            x_hat = torch.permute(x_hat, (0, 2, 3, 1)).detach().cpu().numpy()
+            x_hat = dataio.revert_partition(x_hat)
+            utils.save_reconstruction(x[0], x_hat[0], output_filename, output_file)
+        else:
+            tensors = compression.compress(model, x, mask, args.verbose)
+
+        compression.save_compressed(output_file, tensors)
+    
 
 
 def create_output_location(output_path):
