@@ -4,6 +4,7 @@ from utils import logger, utils
 from models import hierachical_res_2d
 from torchinfo import summary
 import torch
+from torch import nn
 import time
 import errno
 import os
@@ -45,6 +46,7 @@ def compress(args, model):
     dataio = data_io.Dataio(args.batch_size, args.patch_size, args.data_shape)
     dataio.batch_size = int(dataio.get_num_batch_per_time_slice())
     ds = dataio.get_compression_data_loader(args.input_path, args.ds_name)
+    
     if args.verbose: data_io.log_training_parameters()
     
     logger.log("Compressing...")
@@ -104,9 +106,37 @@ def compress_loop(args, model, ds, dataio):
             x_hat = dataio.revert_partition(x_hat)
             utils.save_reconstruction(x[0], x_hat[0], output_filename, output_file)
         else:
-            tensors = compression.compress(model, x, mask, args.verbose)
+            # tensors = compression.compress(model, x, mask, args.verbose)
+            tensors = gc_compress(model, x, mask, args.verbose)
+
 
         compression.save_compressed(output_file, tensors)
+    
+def gc_compress(model, x, mask):
+    batch_size = int(os.environ.get("BATCH_SIZE", "8"))
+    tensors = gc_compress_step(model, x, batch_size=batch_size)
+    return tensors
+    
+
+
+def gc_compress_step(model, x, batch_size=4):
+    x = poptorch.DataLoader(options=opts,
+                                        dataset=x,
+                                        batch_size=10,
+                                        shuffle=True,
+                                        drop_last=True)
+    gc_model = poptorch.inferenceModel(CompressionWrapper(model))
+    z_tensor, y_tensor = [], []
+    # model_device = next(model.parameters()).device
+    for i, da in enumerate(x):
+        compressed = model.compress(da.type(torch.float))
+        y_tensor.append(compressed[0].detach().cpu())
+        z_tensor.append(compressed[1].detach().cpu())
+    y_tensor = torch.cat(y_tensor, axis=0).cpu()
+    z_tensor = torch.cat(z_tensor, axis=0).cpu()
+    tensors = (y_tensor, z_tensor, *compressed[2:])
+    return tensors
+
     
 
 
@@ -171,6 +201,15 @@ def log_model_summary(model):
                 verbose=args.verbose,
             )
         )
+    
+class CompressionWrapper(nn.Module):
+    def __init__(self, compressionModel) -> None:
+        super().__init__()
+        self.model = compressionModel
+
+    def forward(self, x):
+        compressed = self.model.compress(x)
+        return compressed
 
 if __name__ == '__main__':
     print("parsng args")
