@@ -121,6 +121,8 @@ def gc_compress(model, x, mask=None):
 
 
 def gc_compress_step(model, x, batch_size=4):
+    opts = poptorch.Options()
+    opts.deviceIterations(10)
     x = poptorch.DataLoader(options=opts,
                                         dataset=x,
                                         batch_size=10,
