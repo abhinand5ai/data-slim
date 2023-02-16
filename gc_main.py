@@ -112,7 +112,7 @@ def compress_loop(args, model, ds, dataio):
 
         compression.save_compressed(output_file, tensors)
     
-def gc_compress(model, x, mask):
+def gc_compress(model, x, mask=None):
     batch_size = int(os.environ.get("BATCH_SIZE", "8"))
     tensors = gc_compress_step(model, x, batch_size=batch_size)
     return tensors
