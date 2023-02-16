@@ -5,6 +5,7 @@ from models import hierachical_res_2d
 from torchinfo import summary
 import torch
 from torch import nn
+import torchvision
 import time
 import errno
 import os
@@ -15,17 +16,7 @@ from pathlib import Path
 import glob
 import netcdf_utils
 import poptorch
-# def create_argparser():
-#     """Parses command line arguments"""
-#     return {}
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-if DEVICE.type != "cpu":
-    NUM_GPUS = len([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
-else:
-    NUM_GPUS = 0
-os.environ["DEVICE"] = str(DEVICE.type)
-os.environ["NUM_GPUS"] = str(NUM_GPUS)
 
 def main(args):
     logger.configure(dir="./tmp_logs")
@@ -64,6 +55,7 @@ def compress_loop(args, model, ds, dataio):
 
     logger.log("Making the metadata...")
 
+    gc_inference_model = poptorch.inferenceModel(CompressionWrapper(model))
 
     for i, (x, mask) in enumerate(ds):  
         output_filename = args.input_path.split("/")[-1].rpartition(".")[0] + f"_{i}"
@@ -108,7 +100,7 @@ def compress_loop(args, model, ds, dataio):
             utils.save_reconstruction(x[0], x_hat[0], output_filename, output_file)
         else:
             # tensors = compression.compress(model, x, mask, args.verbose)
-            tensors = gc_compress(model, x, mask)
+            tensors = gc_compress(gc_inference_model, x, mask)
 
 
         compression.save_compressed(output_file, tensors)
@@ -125,14 +117,16 @@ def gc_compress_step(model, x, batch_size=4):
     opts.deviceIterations(10)
     x = poptorch.DataLoader(options=opts,
                                         dataset=x,
-                                        batch_size=10,
+                                        batch_size=batch_size,
                                         shuffle=True,
                                         drop_last=True)
-    gc_model = poptorch.inferenceModel(CompressionWrapper(model))
+
     z_tensor, y_tensor = [], []
-    # model_device = next(model.parameters()).device
     for i, da in enumerate(x):
-        compressed = model.compress(da.type(torch.float))
+        print(da.shape)
+        ipu_tensor = da.type(torch.float).to("ipu")
+        compressed = model(ipu_tensor)
+        print(compressed[0].shape,compressed[1].shape)
         y_tensor.append(compressed[0].detach().cpu())
         z_tensor.append(compressed[1].detach().cpu())
     y_tensor = torch.cat(y_tensor, axis=0).cpu()
@@ -169,7 +163,6 @@ def get_model(args):
         model = hierachical_res_2d.VQCPVAE(
             **utils.args_to_dict(args, utils.model_defaults().keys())
         )
-    model = model.to(torch.device(DEVICE))
     stats = get_stats(args)
     mean = stats["mean"]
     std = stats["std"]
@@ -211,6 +204,7 @@ class CompressionWrapper(nn.Module):
         self.model = compressionModel
 
     def forward(self, x):
+        print("compressing from wrapper")
         compressed = self.model.compress(x)
         return compressed
 
