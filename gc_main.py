@@ -107,7 +107,7 @@ def compress_loop(args, model, ds, dataio):
             utils.save_reconstruction(x[0], x_hat[0], output_filename, output_file)
         else:
             # tensors = compression.compress(model, x, mask, args.verbose)
-            tensors = gc_compress(model, x, mask, args.verbose)
+            tensors = gc_compress(model, x, mask)
 
 
         compression.save_compressed(output_file, tensors)
