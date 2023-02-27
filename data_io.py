@@ -3,6 +3,7 @@ import os
 import xarray as xr
 import numpy as np
 import random
+from torchvision import transforms
 import torch.utils.data as data
 from utils import padder
 from utils import sliding_window as sw
@@ -10,7 +11,6 @@ import matplotlib.pyplot as plt
 import glob
 import pandas as pd
 import random
-from torchvision import transforms
 import torch
 import dask
 import copy

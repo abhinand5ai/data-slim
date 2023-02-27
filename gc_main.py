@@ -32,6 +32,7 @@ def main(args):
         
         
 def compress(args, model):
+
     load_model_checkpoint(model, args.model_path)
     model.eval()
     model.name = args.model_path.split("/")[-3]
@@ -55,7 +56,14 @@ def compress_loop(args, model, ds, dataio):
 
     logger.log("Making the metadata...")
 
-    gc_inference_model = poptorch.inferenceModel(CompressionWrapper(model))
+    compression_wrapped_model = CompressionWrapper(model)
+    compression_wrapped_model.train(False)
+    gc_inference_model = poptorch.inferenceModel(compression_wrapped_model)
+#    print(gc_inference_model)
+    randInput = torch.randn([400, 1, 64, 64]).type(torch.float)
+    cpuOut = model(randInput)
+    print("cpu output shape", cpuOut[0].shape, cpuOut[1].shape)
+#    randOut = gc_inference_model(randInput)
 
     for i, (x, mask) in enumerate(ds):  
         output_filename = args.input_path.split("/")[-1].rpartition(".")[0] + f"_{i}"
@@ -75,33 +83,8 @@ def compress_loop(args, model, ds, dataio):
             # Metadata
             metadata_output_file = output_filename[:-1] + "metadata.nc"
             metadata_output_file = os.path.join(output_path, metadata_output_file)
-            if args.verbose:
-                logger.log(f"Saving mask to {mask_path}")
-                logger.log(f"Saving statistics to {stat_path}")
-                logger.log(f"Saving metadata to {metadata_output_file}")
-            netcdf_utils.create_dataset_with_only_metadata(
-                args.input_path, metadata_output_file, args.ds_name, args.verbose
-            )
-            logger.log(
-                f"Metadata completed in {time.perf_counter() - meta_time:0.4f} seconds"
-            )
-        if args.verbose:
-            logger.log(f"\nCompressing {args.input_path}_{i}")
-            tensors, x_hat = compression.compress(model, x, mask, args.verbose)
-
-            # Save images of original data and reconstructed data for comparison.
-            x = x * mask
-            x = torch.permute(x, (0, 2, 3, 1)).detach().cpu().numpy()
-            x = dataio.revert_partition(x)
-
-            x_hat = x_hat * mask
-            x_hat = torch.permute(x_hat, (0, 2, 3, 1)).detach().cpu().numpy()
-            x_hat = dataio.revert_partition(x_hat)
-            utils.save_reconstruction(x[0], x_hat[0], output_filename, output_file)
-        else:
-            # tensors = compression.compress(model, x, mask, args.verbose)
-            tensors = gc_compress(gc_inference_model, x, mask)
-
+      # tensors = compression.compress(model, x, mask, args.verbose)
+        tensors = gc_compress(gc_inference_model, x, mask)
 
         compression.save_compressed(output_file, tensors)
     
@@ -119,14 +102,12 @@ def gc_compress_step(model, x, batch_size=4):
                                         dataset=x,
                                         batch_size=batch_size,
                                         shuffle=True,
-                                        drop_last=True)
-
+                                        drop_last=True) 
     z_tensor, y_tensor = [], []
     for i, da in enumerate(x):
-        print(da.shape)
-        ipu_tensor = da.type(torch.float).to("ipu")
+        #print(da.shape)
+        ipu_tensor = da.type(torch.float)
         compressed = model(ipu_tensor)
-        print(compressed[0].shape,compressed[1].shape)
         y_tensor.append(compressed[0].detach().cpu())
         z_tensor.append(compressed[1].detach().cpu())
     y_tensor = torch.cat(y_tensor, axis=0).cpu()
@@ -166,6 +147,7 @@ def get_model(args):
     stats = get_stats(args)
     mean = stats["mean"]
     std = stats["std"]
+    print(stats)
     model.set_standardizer_layer(mean, std**2, 1e-6)
     logger.log(f"Model initialization time: {time.perf_counter() - start_time:0.4f} seconds\n")
     return model
@@ -207,6 +189,7 @@ class CompressionWrapper(nn.Module):
         print("compressing from wrapper")
         compressed = self.model.compress(x)
         return compressed
+#        return self.model(x)
 
 if __name__ == '__main__':
     print("parsng args")

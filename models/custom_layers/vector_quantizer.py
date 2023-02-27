@@ -201,12 +201,19 @@ class VectorQuantizerEMA(nn.Module):
     def get_encodings(self, encoding_indices):
         # one hot encoding based on the encoding_indices
         # (B * H * W, 1) -> (B * H * W, num_embeddings)
-        encodings = torch.zeros(
-            encoding_indices.shape[0],
-            self._num_embeddings,
-            device=encoding_indices.device,
-        )
-        encodings.scatter_(dim=1, index=encoding_indices, value=1)
+#        if encoding_indices.dtype != torch.int64:
+#            print("changing dtype -----------------")
+#            encoding_indices = encoding_indices.type(torch.int64)
+#        encodings = torch.zeros(
+#            encoding_indices.shape[0],
+#            self._num_embeddings,
+#            device=encoding_indices.device,
+#        )
+#        print(encoding_indices.dtype)
+#        encodings.scatter_(dim=1, index=encoding_indices, value=1)
+#        return encodings
+        encodings = F.one_hot(encoding_indices[:,0], num_classes=self._num_embeddings)
+        encodings = encodings.type(self._embedding.weight.dtype)
         return encodings
 
     def get_quantized_from_indices(

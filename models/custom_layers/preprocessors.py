@@ -65,13 +65,14 @@ class Standardizer(nn.Module):
 
     def __init__(self, mean, variance, eta=1e-6, name=None, **kwargs):
         super().__init__(**kwargs)
-        self._mean = torch.tensor(mean)
-        self._variance = torch.tensor(variance)
-        self._sd = torch.sqrt(self._variance)
-        self._eta = torch.tensor(eta)
+        self._mean = (mean)
+        self._variance = (variance)
+        self._sd = (self._variance)
+        self._eta = (eta)
         self.name = name
 
     def forward(self, x, normalize=1):
+        #print("#################Inside Standardizer", x.shape)
         if normalize == 1:
             x = self._standardize(x)
         else:
