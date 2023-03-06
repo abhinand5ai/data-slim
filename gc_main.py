@@ -16,6 +16,7 @@ from pathlib import Path
 import glob
 import netcdf_utils
 import poptorch
+import train
 
 
 def main(args):
@@ -25,12 +26,45 @@ def main(args):
     model = get_model(args)
     # if args.verbose:
     #     log_model_summary(model)
+    if args.command == "train":
+
+        # Get data.
+        start_time = time.perf_counter()
+        dataio = data_io.Dataio(args.batch_size, args.patch_size, args.data_shape)
+        train_ds, test_ds = dataio.get_train_test_data_loader(
+            args.data_dir, args.ds_name, local_test=args.local_test
+        )
+        logger.log(f"I/O time: {time.perf_counter() - start_time:0.4f} seconds\n")
+
+        # Resume parameters.
+        resume_checkpoint = {}
+        if args.resume:
+            resume_checkpoint = utils.get_checkpoint(args)
+            model, is_weight_loaded = utils.load_model_with_checkpoint(
+                model, resume_checkpoint["weight_path"], args.verbose
+            )
+            if not is_weight_loaded:
+                logger.log("Training from scratch.\n")
+                resume_checkpoint = {}
+
+        if args.verbose:
+            dataio.log_training_parameters()
+
+        model = train.train(
+            model=model,
+            train_ds=train_ds,
+            model_path=args.model_path,
+            test_ds=test_ds,
+            resume_checkpoint=resume_checkpoint,
+            **utils.args_to_dict(args, utils.train_defaults().keys()),
+            args=args,
+            dataio=dataio,
+        )
 
     if args.command in ["compress"]:
         compress(args, model)
         
-        
-        
+             
 def compress(args, model):
 
     load_model_checkpoint(model, args.model_path)
