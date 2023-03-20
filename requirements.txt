@@ -51,7 +51,7 @@ netcdf4
 torchinfo
 pytorch-lightning
 torch
-torchvision
+torchvisioni==0.14.0
 torchaudio
 scipy
 scikit-image
