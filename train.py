@@ -15,7 +15,7 @@ import sys
 from utils import utils, scheduler, logger, custom_callbacks
 import gc
 
-DEVICE = torch.device(str(os.environ.get("DEVICE", "cpu")))
+DEVICE = torch.device(str(os.environ.get("DEVICE", "ipu")))
 NUM_GPUS = int(os.environ.get("NUM_GPUS", 0))
 
 
@@ -49,18 +49,18 @@ class Compressor(pl.LightningModule):
 
     def _get_fft_mse_loss(self, x, x_hat):
         dim = tuple(range(1, len(x.shape), 1))
-        x_fft = torch.fft.fftn(x, dim=dim, norm="ortho")
-        x_fft_magnitude = torch.abs(x_fft)
-        x_fft_angle = torch.angle(x_fft)
-
-        x_hat_fft = torch.fft.fftn(x_hat, dim=dim, norm="ortho")
-        x_hat_fft_magnitude = torch.abs(x_hat_fft)
-        x_hat_fft_angle = torch.angle(x_hat_fft)
-
-        fft_magnitude_mse = F.mse_loss(x_fft_magnitude, x_hat_fft_magnitude)
-        fft_angle_mse = F.mse_loss(x_fft_angle, x_hat_fft_angle)
-        fft_mse_loss = fft_magnitude_mse + fft_angle_mse
-        return fft_mse_loss
+        #x_fft = torch.fft.fftn(x, dim=dim, norm="ortho")
+        #x_fft_magnitude = torch.abs(x_fft)
+        #x_fft_angle = torch.angle(x_fft)
+#
+#        x_hat_fft = torch.fft.fftn(x_hat, dim=dim, norm="ortho")
+#        x_hat_fft_magnitude = torch.abs(x_hat_fft)
+#        x_hat_fft_angle = torch.angle(x_hat_fft)
+#
+#        fft_magnitude_mse = F.mse_loss(x_fft_magnitude, x_hat_fft_magnitude)
+#        fft_angle_mse = F.mse_loss(x_fft_angle, x_hat_fft_angle)
+#        fft_mse_loss = fft_magnitude_mse + fft_angle_mse
+#        return fft_mse_loss
 
     def _get_loss(self, batch):
         """
@@ -110,34 +110,34 @@ class Compressor(pl.LightningModule):
         loss = mse_loss * self.mse_weight + quantized_loss
         cur_lr = self.trainer.optimizers[0].param_groups[0]["lr"]
 
-        self.log("mse_loss", mse_loss, prog_bar=True)
-        self.log("quantized_loss", quantized_loss, prog_bar=True)
-        self.log("fft_mse_loss", fft_mse_loss, prog_bar=True)
-        self.log("train_loss", loss, on_epoch=True, sync_dist=True)
-        self.log("lr", cur_lr, prog_bar=True, on_step=True)
-        self.log("hp/train_loss", loss, sync_dist=True)
-        self.log("hp/train_mse", mse_loss, sync_dist=True)
-
+#        self.log("mse_loss", mse_loss, prog_bar=True)
+#        self.log("quantized_loss", quantized_loss, prog_bar=True)
+#        self.log("fft_mse_loss", fft_mse_loss, prog_bar=True)
+#        self.log("train_loss", loss, on_epoch=True, sync_dist=True)
+#        self.log("lr", cur_lr, prog_bar=True, on_step=True)
+#        self.log("hp/train_loss", loss, sync_dist=True)
+#        self.log("hp/train_mse", mse_loss, sync_dist=True)
+#
         return loss
 
     def validation_step(self, batch, batch_idx):
         mse_loss, quantized_loss, fft_mse_loss = self._get_loss(batch)
-        loss = mse_loss * self.mse_weight + quantized_loss + fft_mse_loss
-        self.log("val_mse_loss", mse_loss, sync_dist=True)
-        self.log("val_quantized_loss", quantized_loss, sync_dist=True)
-        self.log("val_fft_mse_loss", fft_mse_loss, sync_dist=True)
-        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
-        self.log("hp/val_loss", loss, sync_dist=True)
-        self.log("hp/val_mse", mse_loss, sync_dist=True)
+        #loss = mse_loss * self.mse_weight + quantized_loss #+ fft_mse_loss
+#        self.log("val_mse_loss", mse_loss, sync_dist=True)
+#        self.log("val_quantized_loss", quantized_loss, sync_dist=True)
+#        self.log("val_fft_mse_loss", fft_mse_loss, sync_dist=True)
+#        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
+#        self.log("hp/val_loss", loss, sync_dist=True)
+#        self.log("hp/val_mse", mse_loss, sync_dist=True)
 
     def test_step(self, batch, batch_idx):
         mse_loss, quantized_loss, fft_mse_loss = self._get_loss(batch)
         loss = mse_loss * self.mse_weight + quantized_loss + fft_mse_loss
-        self.log("test_mse_loss", mse_loss, sync_dist=True)
-        self.log("test_quantized_loss", quantized_loss, sync_dist=True)
-        self.log("test_fft_mse_loss", fft_mse_loss, sync_dist=True)
-        self.log("test_loss", loss, on_epoch=True, sync_dist=True)
-
+#        self.log("test_mse_loss", mse_loss, sync_dist=True)
+#        self.log("test_quantized_loss", quantized_loss, sync_dist=True)
+#        self.log("test_fft_mse_loss", fft_mse_loss, sync_dist=True)
+#        self.log("test_loss", loss, on_epoch=True, sync_dist=True)
+#
     def compress(self, x):
         return self.model.compress(x)
 
@@ -145,10 +145,11 @@ class Compressor(pl.LightningModule):
         return self.model.decompress(x)
 
     def on_train_start(self):
-        self.logger.log_hyperparams(
-            self.hparams,
-            {"hp/train_loss": 0, "hp/train_mse": 0, "hp/val_loss": 0, "hp/val_mse": 0},
-        )
+        pass
+#        self.logger.log_hyperparams(
+#            self.hparams,
+#            {"hp/train_loss": 0, "hp/train_mse": 0, "hp/val_loss": 0, "hp/val_mse": 0},
+#        )
 
 
 def train(
@@ -206,10 +207,11 @@ def train(
     #         limit_test_batches = 0.05
 
     trainer = pl.Trainer(
+        #ipus=1,
         fast_dev_run=False,
         default_root_dir=os.path.join(checkpoints_dir),
-        accelerator="gpu",
-        devices=NUM_GPUS,
+        accelerator="ipu",
+        #devices=NUM_GPUS,
         max_epochs=epochs,
         log_every_n_steps=log_interval,
         logger=tfboard_logger,
@@ -225,7 +227,8 @@ def train(
         **compressor_args,
         **utils.args_to_dict(args, utils.model_defaults().keys()),
     )
-    trainer.fit(lightning_model, train_ds, test_ds)
+    #trainer.fit(lightning_model, train_ds, test_ds)
+    trainer.fit(lightning_model, train_ds)
     total_training_time = time.perf_counter() - start_total_time
     logger.log(f"Training time: {total_training_time:0.2f} seconds")
 
