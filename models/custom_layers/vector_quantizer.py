@@ -152,26 +152,27 @@ class VectorQuantizerEMA(nn.Module):
 
         # Use EMA to update the embedding vectors
         if self.training:
-            self._ema_cluster_size = self._ema_cluster_size * self._decay + (
+            self._ema_cluster_size.copy_(self._ema_cluster_size * self._decay + (
                 1 - self._decay
-            ) * torch.sum(encodings, 0)
+            ) * torch.sum(encodings, 0))
 
             # Laplace smoothing of the cluster size
             n = torch.sum(self._ema_cluster_size.data)
-            self._ema_cluster_size = (
+            self._ema_cluster_size.copy_(
                 (self._ema_cluster_size + self._epsilon)
                 / (n + self._num_embeddings * self._epsilon)
                 * n
             )
 
             dw = torch.matmul(encodings.t(), flat_input)
-            self._ema_w = nn.Parameter(
+            #with torch.no_grad():
+            self._ema_w.data.copy_((
                 self._ema_w * self._decay + (1 - self._decay) * dw
-            )
+            ))
 
-            self._embedding.weight = nn.Parameter(
+            self._embedding.weight.data.copy_ ((
                 self._ema_w / self._ema_cluster_size.unsqueeze(1)
-            )
+            ))
 
         # Loss
         e_latent_loss = F.mse_loss(quantized.detach(), inputs)
