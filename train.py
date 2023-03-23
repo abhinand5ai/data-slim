@@ -1,3 +1,5 @@
+import poptorch
+from pytorch_lightning.strategies import IPUStrategy
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import (
     LearningRateMonitor,
@@ -118,21 +120,22 @@ class Compressor(pl.LightningModule):
 #        self.log("hp/train_loss", loss, sync_dist=True)
 #        self.log("hp/train_mse", mse_loss, sync_dist=True)
 #
-        return loss
+        return poptorch.identity_loss(loss, reduction="mean")
 
     def validation_step(self, batch, batch_idx):
         mse_loss, quantized_loss, fft_mse_loss = self._get_loss(batch)
-        #loss = mse_loss * self.mse_weight + quantized_loss #+ fft_mse_loss
+        loss = mse_loss * self.mse_weight + quantized_loss #+ fft_mse_loss
 #        self.log("val_mse_loss", mse_loss, sync_dist=True)
 #        self.log("val_quantized_loss", quantized_loss, sync_dist=True)
 #        self.log("val_fft_mse_loss", fft_mse_loss, sync_dist=True)
-#        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
+        #self.log("val_loss", loss, sync_dist=True)
 #        self.log("hp/val_loss", loss, sync_dist=True)
 #        self.log("hp/val_mse", mse_loss, sync_dist=True)
+        loss = poptorch.identity_loss(loss, reduction="mean")
 
     def test_step(self, batch, batch_idx):
         mse_loss, quantized_loss, fft_mse_loss = self._get_loss(batch)
-        loss = mse_loss * self.mse_weight + quantized_loss + fft_mse_loss
+        loss = mse_loss * self.mse_weight + quantized_loss #+ fft_mse_loss
 #        self.log("test_mse_loss", mse_loss, sync_dist=True)
 #        self.log("test_quantized_loss", quantized_loss, sync_dist=True)
 #        self.log("test_fft_mse_loss", fft_mse_loss, sync_dist=True)
@@ -206,6 +209,8 @@ def train(
     #         limit_train_batches = 0.05
     #         limit_test_batches = 0.05
 
+    train_options = poptorch.Options()
+    #train_options.broadcastBuffers(False)
     trainer = pl.Trainer(
         #ipus=1,
         fast_dev_run=False,
@@ -216,11 +221,12 @@ def train(
         log_every_n_steps=log_interval,
         logger=tfboard_logger,
         callbacks=_callbacks,
+        strategy=IPUStrategy(training_opts=train_options),
         # limit_val_batches=limit_val_batches,
         # limit_train_batches=limit_train_batches,
         # limit_test_batches=limit_test_batches,
         gradient_clip_algorithm="norm",
-        enable_progress_bar=train_verbose,
+        enable_progress_bar=False,
     )
     lightning_model = Compressor(
         model=model,
@@ -228,7 +234,7 @@ def train(
         **utils.args_to_dict(args, utils.model_defaults().keys()),
     )
     #trainer.fit(lightning_model, train_ds, test_ds)
-    trainer.fit(lightning_model, train_ds)
+    trainer.fit(lightning_model, train_ds )
     total_training_time = time.perf_counter() - start_total_time
     logger.log(f"Training time: {total_training_time:0.2f} seconds")
 
@@ -255,7 +261,7 @@ def get_callbacks(
     checkpoints_dir, weight_filename="{epoch:03d}-{train_loss:.2f}", verbose=False
 ):
     callbacks = [
-        EarlyStopping("val_loss", patience=25, mode="min"),
+        #EarlyStopping("val_loss", patience=25, mode="min"),
         ModelCheckpoint(
             save_top_k=3,
             monitor="val_loss",
@@ -266,8 +272,8 @@ def get_callbacks(
         ),
         LearningRateMonitor("step"),
     ]
-    if verbose:
-        callbacks.append(TQDMProgressBar(refresh_rate=100))
+    #if verbose:
+    #    callbacks.append(TQDMProgressBar(refresh_rate=100))
     return callbacks
 
 
