@@ -81,7 +81,7 @@ class Dataio:
             train_dataset,
             drop_last=True,
             shuffle=True,
-            num_workers=4 * NUM_GPUS,
+            num_workers=4 * 10,
             pin_memory=True,
         )
 
@@ -91,7 +91,7 @@ class Dataio:
         test_dataset = self.create_disjoint_generator(
             test_files, ds_name, fillna_value=fillna_value, name="test", shuffle=False
         )
-        test_ds = self.get_data_loader(test_dataset, num_workers=4 * NUM_GPUS)
+        test_ds = self.get_data_loader(test_dataset, num_workers=4 * 10)
         return train_ds, test_ds
 
     def get_compression_data_loader(self, input_path, ds_name):
