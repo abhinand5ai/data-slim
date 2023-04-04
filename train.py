@@ -216,8 +216,8 @@ def train(
         fast_dev_run=False,
         default_root_dir=os.path.join(checkpoints_dir),
         accelerator="ipu",
-        #devices=NUM_GPUS,
-        max_epochs=epochs,
+        devices=4,
+        max_epochs=1,
         log_every_n_steps=log_interval,
         logger=tfboard_logger,
         callbacks=_callbacks,
@@ -234,22 +234,24 @@ def train(
         **utils.args_to_dict(args, utils.model_defaults().keys()),
     )
     #trainer.fit(lightning_model, train_ds, test_ds)
+    logger.log(f"VALIDATION DATA SIZE {len(test_ds)}")
     trainer.fit(lightning_model, train_ds )
     total_training_time = time.perf_counter() - start_total_time
     logger.log(f"Training time: {total_training_time:0.2f} seconds")
 
     # Test best model on validation and test set
-    logger.log(f"Loading best model from {_callbacks[1].best_model_path}")
-    lightning_model = Compressor.load_from_checkpoint(
-        _callbacks[1].best_model_path, model=model
-    )
-    test_result = trainer.test(lightning_model, test_ds, verbose=train_verbose)
-    logger.log(f"\n{test_result}\n")
+    #logger.log(f"Loading best model from {_callbacks[1].best_model_path}")
+    #lightning_model = model
+#    lightning_model = Compressor.load_from_checkpoint(
+#        _callbacks[1].best_model_path, model=model
+#    )
+    #test_result = trainer.test(lightning_model, test_ds, verbose=train_verbose)
+    #logger.log(f"\n{test_result}\n")
 
-    for i, (path, _) in enumerate(trainer.checkpoint_callback.best_k_models.items()):
-        m = Compressor.load_from_checkpoint(path, model=model)
-        torch.save(m.model.state_dict(), path.rpartition(".")[0] + ".pt")
-    model = model.to(DEVICE)
+#    for i, (path, _) in enumerate(trainer.checkpoint_callback.best_k_models.items()):
+#        m = Compressor.load_from_checkpoint(path, model=model)
+#        torch.save(m.model.state_dict(), path.rpartition(".")[0] + ".pt")
+#    model = model.to(DEVICE)
 
     gc.collect()
     logger.info(f"\nTraining completed!\n")

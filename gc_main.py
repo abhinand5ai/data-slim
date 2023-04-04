@@ -26,6 +26,7 @@ def main(args):
     model = get_model(args)
     # if args.verbose:
     #     log_model_summary(model)
+    print("############################################GC_MAIN############################")
     if args.command == "train":
 
         # Get data.
@@ -34,6 +35,7 @@ def main(args):
         train_ds, test_ds = dataio.get_train_test_data_loader(
             args.data_dir, args.ds_name, local_test=args.local_test
         )
+        logger.log(f"TEST DATA SIZE {len(test_ds)}")
         logger.log(f"I/O time: {time.perf_counter() - start_time:0.4f} seconds\n")
 
         # Resume parameters.
