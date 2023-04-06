@@ -210,14 +210,16 @@ def train(
     #         limit_test_batches = 0.05
 
     train_options = poptorch.Options()
+    train_options.replicationFactor(16)
+    train_options.broadcastBuffers(False)
     #train_options.broadcastBuffers(False)
     trainer = pl.Trainer(
         #ipus=1,
         fast_dev_run=False,
         default_root_dir=os.path.join(checkpoints_dir),
         accelerator="ipu",
-        devices=4,
-        max_epochs=1,
+        devices=1,
+        max_epochs=epochs,
         log_every_n_steps=log_interval,
         logger=tfboard_logger,
         callbacks=_callbacks,
