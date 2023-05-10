@@ -210,9 +210,10 @@ def train(
     #         limit_test_batches = 0.05
 
     train_options = poptorch.Options()
-    train_options.replicationFactor(16)
+    train_options.replicationFactor(1)
+    train_options.deviceIterations(2)
+    train_options.Training.gradientAccumulation(64)
     train_options.broadcastBuffers(False)
-    #train_options.broadcastBuffers(False)
     trainer = pl.Trainer(
         #ipus=1,
         fast_dev_run=False,
